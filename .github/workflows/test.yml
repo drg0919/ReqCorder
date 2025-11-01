@@ -6,8 +6,6 @@ name: Test ReqCorder
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   test-ubuntu:
