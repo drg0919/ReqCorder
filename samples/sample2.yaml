@@ -1,0 +1,25 @@
+url: "https://jsonplaceholder.typicode.com/posts"
+method: "POST"
+headers:
+  Content-Type: "application/json; charset=UTF-8"
+  X-API-Version: "v1"
+  Custom-Header: "test-value"
+cookies:
+  session_id: "abc123xyz"
+  preferences: "dark_theme"
+  csrf_token: "token_12345"
+auth: "my_secret_token"
+auth_type: "bearer"
+auth_header_name: "Authorization"
+timeout: 45
+user_agent: "Github/Pipeline"
+body: |
+  {
+    "username": "{{user_name}}",
+    "id": 1,
+    "body": "bar",
+    "shell": "{{env:SHELL}}"
+  }
+body_vars:
+  user_name: "jane_doe"
+ssl_verify: true

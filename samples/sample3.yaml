@@ -1,0 +1,7 @@
+url: "https://jsonplaceholder.typicode.com/posts"
+method: "GET"
+headers:
+  Content-Type: "application/json; charset=UTF-8"
+  X-API-Version: "v1"
+  Custom-Header: "test-value"
+ssl_verify: true

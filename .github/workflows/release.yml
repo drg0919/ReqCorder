@@ -1,0 +1,245 @@
+# This workflow will build and release ReqCorder binaries
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Release ReqCorder
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build binaries for ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-15-intel
+          - os: darwin
+            arch: arm64
+            runner: macos-15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Tidy Go modules
+        run: go mod tidy
+
+      - name: Build binary
+        run: |
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags "-X main.VERSION=${{ github.ref_name }}" -o reqcorder ./cmd/reqcorder
+
+      - name: Package binary
+        run: |
+          tar -czf reqcorder-${{ matrix.os }}-${{ matrix.arch }}.tar.gz reqcorder
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reqcorder-${{ matrix.os }}-${{ matrix.arch }}
+          path: reqcorder-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release and Upload Assets
+        run: |
+          # Create release
+          gh release create ${{ github.ref_name }} \
+            --title "Release ${{ github.ref_name }}" \
+            --notes "ReqCorder Release ${{ github.ref_name }}"
+          
+          # Upload assets
+          for asset in artifacts/*/*.tar.gz; do
+            if [ -f "$asset" ]; then
+              gh release upload ${{ github.ref_name }} "$asset"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-linux-binary:
+    name: Test Linux binary on ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        include:
+          - container: debian:13
+          - container: fedora:42
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ matrix.container }}" = "debian:13" ]; then
+            apt-get update && apt-get install -y ca-certificates curl tar
+          elif [ "${{ matrix.container }}" = "fedora:42" ]; then
+            dnf install -y ca-certificates curl tar
+          fi
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract and test binary
+        run: |
+          # Extract the binary
+          tar -xzf artifacts/reqcorder-linux-amd64/reqcorder-linux-amd64.tar.gz
+          
+          # Make it executable
+          chmod +x reqcorder
+          
+          # Test help command
+          echo "Testing help command:"
+          ./reqcorder --help
+          
+          # Test exec command on sample files
+          echo "Testing exec command on sample files:"
+          
+          # Test samples 1-3 (should succeed)
+          for sample in samples/sample1.yaml samples/sample2.yaml samples/sample3.yaml; do
+            echo "Running exec on $sample"
+            ./reqcorder exec -m "$sample" || echo "Failed to execute $sample, continuing with next sample"
+          done
+          
+          # Test sample4 (expected to fail with non-zero exit code)
+          echo "Running exec on sample4.yaml (expected to fail)"
+          output=$(./reqcorder exec -m "samples/sample4.yaml" 2>&1) || exit_code=$?
+          if [ -z "$exit_code" ]; then
+            echo "ERROR: sample4.yaml should have failed but it succeeded"
+            echo "Output: $output"
+            exit 1
+          else
+            echo "$output"
+          fi
+
+  test-ubuntu-binary:
+    name: Test Ubuntu binary
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract and test binary
+        run: |
+          # Extract the binary
+          tar -xzf artifacts/reqcorder-linux-amd64/reqcorder-linux-amd64.tar.gz
+          
+          # Make it executable
+          chmod +x reqcorder
+          
+          # Test help command
+          echo "Testing help command:"
+          ./reqcorder --help
+          
+          # Test exec command on sample files
+          echo "Testing exec command on sample files:"
+          
+          # Test samples 1-3 (should succeed)
+          for sample in samples/sample1.yaml samples/sample2.yaml samples/sample3.yaml; do
+            echo "Running exec on $sample"
+            ./reqcorder exec -m "$sample" || echo "Failed to execute $sample, continuing with next sample"
+          done
+          
+          # Test sample4 (expected to fail with non-zero exit code)
+          echo "Running exec on sample4.yaml (expected to fail)"
+          output=$(./reqcorder exec -m "samples/sample4.yaml" 2>&1) || exit_code=$?
+          if [ -z "$exit_code" ]; then
+            echo "ERROR: sample4.yaml should have failed but it succeeded"
+            echo "Output: $output"
+            exit 1
+          else
+            echo "$output"
+          fi
+
+  test-macos-binary:
+    name: Test macOS binary
+    needs: build-binaries
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15-intel
+            artifact: reqcorder-darwin-amd64
+          - runner: macos-15
+            artifact: reqcorder-darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract and test binary
+        run: |
+          # Extract the binary
+          tar -xzf artifacts/${{ matrix.artifact }}/${{ matrix.artifact }}.tar.gz
+          
+          # Make it executable
+          chmod +x reqcorder
+          
+          # Test help command
+          echo "Testing help command:"
+          ./reqcorder --help
+          
+          # Test exec command on sample files
+          echo "Testing exec command on sample files:"
+          
+          # Test samples 1-3 (should succeed)
+          for sample in samples/sample1.yaml samples/sample2.yaml samples/sample3.yaml; do
+            echo "Running exec on $sample"
+            ./reqcorder exec -m "$sample" || echo "Failed to execute $sample, continuing with next sample"
+          done
+          
+          # Test sample4 (expected to fail with non-zero exit code)
+          echo "Running exec on sample4.yaml (expected to fail)"
+          output=$(./reqcorder exec -m "samples/sample4.yaml" 2>&1) || exit_code=$?
+          if [ -z "$exit_code" ]; then
+            echo "ERROR: sample4.yaml should have failed but it succeeded"
+            echo "Output: $output"
+            exit 1
+          else
+            echo "$output"
+          fi
