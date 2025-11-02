@@ -2,6 +2,8 @@
 
 ReqCorder is a CLI tool for Linux and macOS to perform and record HTTP requests using YAML files, authored in Go. The main goal of the tool is to provide a clean CLI interface for maintaining request-response history and traceability, particularly useful for API testing.
 
+![Terminal Demo](samples/demo.gif)
+
 ## Salient Features
 
 - Create reusable request templates in YAML that ReqCorder will use to perform HTTP requests ♻️.
