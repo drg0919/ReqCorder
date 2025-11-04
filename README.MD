@@ -25,7 +25,7 @@ chmod +x reqcorder
 - Move the extracted binary to an appropriate location, ideally covered in the PATH. Example -
 
 ```bash
-mv reqcorder /usr/local/bin
+sudo mv reqcorder /usr/local/bin
 ```
 
 - Alternatively, one can modify the PATH variable to include the location where ReqCorder was extracted.
