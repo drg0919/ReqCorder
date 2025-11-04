@@ -30,6 +30,12 @@ sudo mv reqcorder /usr/local/bin
 
 - Alternatively, one can modify the PATH variable to include the location where ReqCorder was extracted.
 
+- If macOS Gatekeeper blocks the execution of the binary, one can run the following command to remove the quarantine flag - 
+
+```zsh
+xattr -d com.apple.quarantine ./reqcorder
+```
+
 ## Usage
 
 ### Basics
